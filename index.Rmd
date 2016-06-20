@@ -1,20 +1,186 @@
 ``` {r optsknit, echo=F}
 # upload all images to imgur.com http://jeromyanglim.blogspot.com/2012/05/getting-started-with-r-markdown-knitr.html
+library(knitr)
 opts_knit$set(upload.fun = imgur_upload)
+setwd("D:/workspace/dss-predmachlearn-20160522/gh-pages")
+
+library(caret)
+library(ggplot2)
+```
+# Predict Exercise Manners With the Weight Lifting Exercise Dataset
+
+Using tracker devices, people often quantify how much of a particular activity they do, but they rarely quantify how well they do it. In the Human Activity Recognition project http://groupware.les.inf.puc-rio.br/har, the authors collected the Weight Lifting Exercise dataset (Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.) In this dataset, 6 participants are asked to perform barbell lifts correctly and incorrectly in 5 different ways. Then data from accelerometers on belt, forearm, arm and dumbell are collected.
+
+This writing is the course project of Practical Machine Learning class. The goal is to derive a model to predict the manner in which people did the exercise. In the training dataset, it is the "classe" variable.
+
+```{r loaddata, cache=T}
+training = read.csv("../pml-training.csv")
+testing = read.csv("../pml-testing.csv")
+set.seed(1234)
 ```
 
-# Placeholder text
+Since there is large amount of data available, take a few samples of it. Also some columns are mostly NaN, there can be 3 ways to handle it
+- ignore such columns
+- use such columns as-is
+- convert to a boolean variable
 
-## Placeholder text
+```{r cleanup, warning=F}
+sample = training[sample(nrow(training), 2000),]
+table(sample$classe)
 
+predictors = as.data.frame(
+  apply(
+    sample[, c(8:159)],
+    2,
+    function(x) as.numeric(as.character(x))))
 
-```{r placeholder}
-# placeholder
+validColumns = names(predictors)[sapply(
+  predictors,
+  function(x)sum(is.na(x)) == 0)]
+
+# ignore invalid columns
+tr1 = predictors[, validColumns]
+tr1$classe = sample$classe
+
+# use invalid columns
+tr2 = predictors[,]
+tr2$classe = sample$classe
+
+# convert to boolean variable 
+tr3 = predictors[, validColumns]
+# ??
+tr3$classe = sample$classe
 ```
 
----
+Try out different models. Since the output is one of 5 possible values, and there are many variables that might be a predictor, a tree based algorithm and combined with principal components may be the best, but that is yet to be seen.
 
-* list
+Since we cannot show the effectiveness of a model without testing, split the sample dataset again to obtain a testing dataset
 
- * list 2
+```{r splitdata}
+# tr1/2/3 differ only in columns
+inTrain = createDataPartition(sample$classe, 0.5)[[1]]
 
+tr1inTrain = tr1[inTrain,]
+tr1notInTrain = tr1[-inTrain,]
+
+tr2inTrain = tr2[inTrain,]
+tr2notInTrain = tr2[-inTrain,]
+
+tr3inTrain = tr3[inTrain,]
+tr3notInTrain = tr3[-inTrain,]
+```
+
+```{r callmethods, eval=F, echo=F}
+# call each method on tr1/2/3inTrain
+# get 91% accuracy, slow
+modrf1 = train(classe ~ ., method="rf", data=tr1inTrain)
+confusionMatrix(tr1notInTrain$classe, predict(modrf1, tr1notInTrain))
+
+# cannot run because of a warning
+#modrf2 = train(classe ~ ., method="rf", data=tr2inTrain)
+#confusionMatrix(tr2notInTrain$classe, predict(modrf2, tr2notInTrain))
+
+
+# get 78% accuracy, slow
+modrf_pca1 = train(classe ~ ., method="rf", preProcess="pca", data=tr1inTrain)
+confusionMatrix(tr1notInTrain$classe, predict(modrf_pca1, tr1notInTrain))
+
+# cannot run because of a warning
+#modrf_pca2 = train(classe ~ ., method="rf", preProcess="pca", data=tr2inTrain)
+#confusionMatrix(tr2notInTrain$classe, predict(modrf_pca2, tr2notInTrain))
+
+# get 90% accuracy, slow
+modgbm1 = train(classe ~ ., method="gbm", data=tr1inTrain, verbose=F)
+confusionMatrix(tr1notInTrain$classe, predict(modgbm1, tr1notInTrain))
+
+# cannot run because of a warning
+#modgbm2 = train(classe ~ ., method="gbm", data=tr2inTrain, verbose=F)
+#confusionMatrix(tr2notInTrain$classe, predict(modgbm2, tr2notInTrain))
+
+# get 71% accuracy, slow
+modgbm_pca1 = train(classe ~ ., method="gbm", preProcess="pca", data=tr1inTrain, verbose=F)
+confusionMatrix(tr1notInTrain$classe, predict(modgbm_pca1, tr1notInTrain))
+
+#modgbm_pca2 = train(classe ~ ., method="gbm", preProcess="pca", data=tr2inTrain, verbose=F)
+#confusionMatrix(tr2notInTrain$classe, predict(modgbm_pca2, tr2notInTrain))
+
+# get 70% accuracy
+modlda1 = train(classe ~ ., method="lda", data=tr1inTrain)
+confusionMatrix(tr1notInTrain$classe, predict(modlda1, tr1notInTrain))
+
+# cannot run because of a warning
+#modlda2 = train(classe ~ ., method="lda", data=tr2inTrain)
+#confusionMatrix(tr2notInTrain$classe, predict(modlda2, tr2notInTrain))
+
+# get 52% accuracy
+modlda_pca1 = train(classe ~ ., method="lda", preProcess="pca", data=tr1inTrain)
+confusionMatrix(tr1notInTrain$classe, predict(modlda_pca1, tr1notInTrain))
+
+# cannot run because of a warning
+#modlda_pca2 = train(classe ~ ., method="lda", preProcess="pca", data=tr2inTrain)
+#confusionMatrix(tr2notInTrain$classe, predict(modlda_pca2, tr2notInTrain))
+
+# get 66% accuracy, slow
+modnb1 = train(classe ~ ., method="nb", data=tr1inTrain)
+confusionMatrix(tr1notInTrain$classe, predict(modnb1, tr1notInTrain))
+
+# cannot run because of a warning
+#modnb2 = train(classe ~ ., method="nb", data=tr2inTrain)
+#confusionMatrix(tr2notInTrain$classe, predict(modnb2, tr2notInTrain))
+
+# get 58% accuracy, slow
+modnb_pca1 = train(classe ~ ., method="nb", preProcess="pca", data=tr1inTrain)
+confusionMatrix(tr1notInTrain$classe, predict(modnb_pca1, tr1notInTrain))
+
+# cannot run because of a warning
+#modnb_pca2 = train(classe ~ ., method="nb", preProcess="pca", data=tr2inTrain)
+#confusionMatrix(tr2notInTrain$classe, predict(modnb_pca2, tr2notInTrain))
+
+# get 42% accuracy (worse than guessing), fast
+modrpart1 = train(classe ~ ., method="rpart", data=tr1inTrain)
+confusionMatrix(tr1notInTrain$classe, predict(modrpart1, tr1notInTrain))
+
+# cannot run because of a warning
+#modrpart2 = train(classe ~ ., method="rpart", data=tr2inTrain)
+#confusionMatrix(tr2notInTrain$classe, predict(modrpart2, tr2notInTrain))
+
+# get 29% accuracy (worse than guessing), fast
+modrpart_pca1 = train(classe ~ ., method="rpart", preProcess="pca", data=tr1inTrain)
+confusionMatrix(tr1notInTrain$classe, predict(modrpart_pca1, tr1notInTrain))
+
+# cannot run because of a warning
+#modrpart_pca2 = train(classe ~ ., method="rpart", preProcess="pca", data=tr2inTrain)
+#confusionMatrix(tr2notInTrain$classe, predict(modrpart_pca2, tr2notInTrain))
+
+```
+
+It seems when including columns that has NaN, neither method could run successfully. And with the dataset that has only valid columns, random forest and bagging have best outcome. Adding pca pre-processing did make it worse, maybe because the way it is applied to some variables is incorrect.
+
+For method "rf"
+```{r callmethodrf, warning=F, cache=T}
+modrf1 = train(classe ~ ., method="rf", data=tr1inTrain)
+confusionMatrix(tr1notInTrain$classe, predict(modrf1, tr1notInTrain))
+```
+
+For method "gbm"
+```{r callmethodgbm, warning=F, cache=T}
+modgbm1 = train(classe ~ ., method="gbm", data=tr1inTrain, verbose=F)
+confusionMatrix(tr1notInTrain$classe, predict(modgbm1, tr1notInTrain))
+```
+
+Apply the model to the testing set
+```{r testing, cache=T}
+testingPredictors = as.data.frame(
+  apply(
+    testing[, c(8:159)],
+    2,
+    function(x) as.numeric(as.character(x))))
+
+testSet1 = testingPredictors[,validColumns]
+dim(testSet1)
+
+predRf = predict(modrf1, testSet1)
+predGbm = predict(modgbm1, testSet1)
+confusionMatrix(predRf, predGbm)
+data.frame(rf = predRf, gbm = predGbm)
+```
