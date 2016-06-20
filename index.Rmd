@@ -1,0 +1,20 @@
+``` {r optsknit, echo=F}
+# upload all images to imgur.com http://jeromyanglim.blogspot.com/2012/05/getting-started-with-r-markdown-knitr.html
+opts_knit$set(upload.fun = imgur_upload)
+```
+
+# Placeholder text
+
+## Placeholder text
+
+
+```{r placeholder}
+# placeholder
+```
+
+---
+
+* list
+
+ * list 2
+
